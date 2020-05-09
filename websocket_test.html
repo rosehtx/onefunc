@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>websocket</title>
+  <script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+  <script src="./socket.io.js"></script>
+</head>
+
+<body>
+  <!--<input id="msg" value="" />-->
+  <input type="submit" value="send" onclick="start()">
+  <input type="submit" value="close" onclick="close()">
+  <!--<input id="clientId" value="" />-->
+  <div id="message"></div>
+  <script>
+    // jquery的弹窗输入
+    // let id = prompt('输入id用于测试');
+    // id = id + '_' + getFormatDate();
+    // console.log(id);
+    // let data;
+    $.ajaxSettings.async = false;
+    $.post('ajax_test.php', {
+
+    }, function(result) {
+      data = result;
+    }, "json");
+    console.log(data);
+    var send_data = data.data;
+    /**
+     *0：未连接
+     *1：连接成功，可通讯
+     *2：正在关闭
+     *3：连接已关闭或无法打开
+     */
+    //创建一个webSocket 实例
+    // var webSocket = new WebSocket('ws://192.168.71.71:8183');
+    var webSocket = new WebSocket('ws://192.168.71.71:8182');
+    webSocket.binaryType = 'arraybuffer';
+    //吧要传输的数据转成buffer形式
+    var buff = new TextEncoder().encode(send_data);
+    console.log(buff); //Uint8Array(25) [8, 2, 16, 1, 26, 1, 49, 34, 1, 49, 42, 1, 49, 48, 1, 58, 1, 49, 66, 1, 49, 72, 1, 80, 1]
+    console.log(buff.byteLength); //25
+    //创建一个长度为6+传输buffer长度的buffer对象,前面6位为包头
+    var newBuff  = new ArrayBuffer(6+buff.byteLength)
+    //为了这把长度转成字节放到buffer数据里，先创建一个DataView对象
+    var dataview = new DataView(newBuff);
+    //定义了一个全为0的6+传输buffer长度Uint8Array数据
+    var nextbuff = new Uint8Array(newBuff);
+    console.log(nextbuff) //Uint8Array(31) [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    //创建4个字节小的包长的短整形,长的后面为false
+    dataview.setInt32(0, buff.byteLength+6,true);
+    //创建2个字节小的短整形,长的后面为false,业务需求
+    dataview.setInt16(4, 2,true);
+    //这时候由于newBuff经过dateView前6位设置了字节数据，所以nextbuff前面有数据了
+    console.log(nextbuff); //Uint8Array(31) [31, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    //6位开始的数据用buff替换
+    nextbuff.set(buff,6);
+    console.log(nextbuff);//Uint8Array(31) [31, 0, 0, 0, 2, 0, 8, 2, 16, 1, 26, 1, 49, 34, 1, 49, 42, 1, 49, 48, 1, 58, 1, 49, 66, 1, 49, 72, 1, 80, 1]
+
+    webSocket.onerror = function(event) {
+        document.getElementById("message").innerHTML = "<p>close</p>";
+        console.log("error:" + event.data);
+    };
+
+    // 打开websocket
+    webSocket.onopen = function(event) {
+        console.log("open:" + sockState());
+        // if (webSocket.readyState===1) {
+        //     webSocket.send(send_data);
+        // }
+        document.getElementById("message").innerHTML = "<p>Connect to Service</p>";
+    };
+
+    //监听消息
+    webSocket.onmessage = function(event) {
+        console.log("onMessage");
+
+        // var data = eval('(' + event.data + ')');
+
+        console.log(event);
+        document.getElementById("message").innerHTML += "<p>response:" + data.msg + "</p>"
+    };
+
+
+    webSocket.onclose = function(event) {
+        document.getElementById("message").innerHTML = "<p>close</p>";
+        console.log("close:" + sockState());
+        webSocket.close();
+    }
+    function sockState() {
+        var status = ['未连接', '连接成功，可通讯', '正在关闭', '连接已关闭或无法打开'];
+        return status[webSocket.readyState];
+    }
+
+    function start(event) {
+        console.log('------------chakan');
+        console.log(nextbuff);
+        webSocket.send(nextbuff);
+    };
+
+    function getFormatDate() {
+        var nowDate = new Date();
+        var year = nowDate.getFullYear();
+        var month = nowDate.getMonth() + 1 < 10 ? "0" + (nowDate.getMonth() + 1) : nowDate.getMonth() + 1;
+        var date = nowDate.getDate() < 10 ? "0" + nowDate.getDate() : nowDate.getDate();
+        var hour = nowDate.getHours() < 10 ? "0" + nowDate.getHours() : nowDate.getHours();
+        var minute = nowDate.getMinutes() < 10 ? "0" + nowDate.getMinutes() : nowDate.getMinutes();
+        var second = nowDate.getSeconds() < 10 ? "0" + nowDate.getSeconds() : nowDate.getSeconds();
+        return year + "" + month + "" + date + "" + hour + "" + minute + "" + second;
+    }
+
+    function close(event) {
+        webSocket.close();
+    }
+  </script>
+</body>
+
+</html>
